@@ -1,0 +1,57 @@
+#!/bin/bash
+
+tc qdisc del root dev eth0
+tc qdisc del root dev eth1
+
+
+if [ $? -eq 0 ]
+then
+	echo "Deleted qdiscs"
+else
+	echo "Failed to delete"
+fi
+
+rate=1
+
+tc qdisc add dev eth0 root handle 1:0 netem delay 100ms 50ms
+tc qdisc add dev eth1 root handle 1:0 netem delay 100ms 50ms
+
+tc qdisc add dev eth0 parent 1:1 handle 10: tbf rate ${rate}mbit burst 2024 latency 1000ms	
+tc qdisc add dev eth1 parent 1:1 handle 10: tbf rate ${rate}mbit burst 2024 latency 1000ms	
+
+while :
+do
+	hour=`date +%H`
+	if [ "$hour" -lt 16 ]
+	then
+		lower=10
+		upper=20
+	else
+		lower=20
+		upper=50
+	fi
+
+	rate=1
+
+	while [ "$rate" -le $lower ]
+	do
+		rate=$RANDOM
+		let "rate %= $upper"
+	done 
+
+	tc qdisc replace dev eth0 parent 1:1 handle 10: tbf rate ${rate}mbit burst 2024 latency 1000ms
+	tc qdisc replace dev eth1 parent 1:1 handle 10: tbf rate ${rate}mbit burst 2024 latency 1000ms	
+	
+	if [ $? -eq 0 ]
+	then
+		echo "Bandwidth set to $rate Mb/s"
+	else
+		echo "Command failed"
+		exit 0 
+	fi
+	
+
+	#rate=$[ 1 + $[ RANDOM % 10]]
+	sleep 3000
+
+done
